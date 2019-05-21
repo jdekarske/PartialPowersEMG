@@ -7,7 +7,6 @@ from axopy.gui.canvas import Canvas, Circle
 from axopy.features.time import integrated_emg
 from axopy.timing import Counter
 
-
 import numpy as np
 from scipy.signal import butter
 
@@ -48,7 +47,7 @@ class RLSMapping(pipeline.Block):
 
     def process(self, data):
         """Just applies the current weights to the input."""
-        self.y = data[:,None] # didn't work with 2d shape
+        self.y = data[:, None]  # didn't work with 2d shape
         self.xhat = self.y.dot(self.w.T)
         return self.xhat
 
@@ -83,13 +82,17 @@ class FFT(pipeline.Block):
 
 class plotFFT(Task):
     '''This will train the vertical mappings for the signals simultaneously'''
+
     def __init__(self, pipeline):
         super().__init__()
         self.pipeline = pipeline
 
     def prepare_design(self, design):
-        self.cursorx = [(i+1.)*2/(config['numbands']+ 1.)-1. for i in np.arange(config['numbands'])] # yikes... evenly space along the horizontal
-        self.active_targets = np.unpackbits(np.arange(np.power(2,config['numbands']), dtype=np.uint8)[:, None], axis = 1)[:, -config['numbands']:]+.25 #returns array of all possible combinations
+        # yikes... evenly space along the horizontal
+        self.cursorx = [(i+1.)*2/(config['numbands'] + 1.) -
+                        1. for i in np.arange(config['numbands'])]
+        self.active_targets = np.unpackbits(np.arange(np.power(2, config['numbands']), dtype=np.uint8)[
+                                            :, None], axis=1)[:, -config['numbands']:]+.25  # returns array of all possible combinations
 
         for training in [True, True, True, False]:
             block = design.add_block()
@@ -202,7 +205,8 @@ highfilter = pipeline.Pipeline([
 main_pipeline = pipeline.Pipeline([
     pipeline.Windower(400),
     (lowfilter, highfilter),
-    (FFT(), [pipeline.Callable(integrated_emg)]) #, RLSMapping(config['numbands'], config['numbands'], 0.98)])
+    # , RLSMapping(config['numbands'], config['numbands'], 0.98)])
+    (FFT(), [pipeline.Callable(integrated_emg)])
 
 ])
 
