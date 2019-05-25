@@ -130,7 +130,7 @@ class plotFFT(Task):
             self.targets[i].pos = self.cursorx[i], .5  # evenly space
             self.canvas.add_item(self.targets[i])
 
-        self.plt.setRange(yRange=(0, 1), xRange=(0, 200))
+        self.plt.setRange(yRange=(0, .2), xRange=(0, 200))
 
         # Qt
         layout = QtGui.QGridLayout()
