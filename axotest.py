@@ -13,6 +13,8 @@ from scipy.signal import butter
 from PyQt5 import QtGui
 import pyqtgraph as pg
 
+from pytrigno.pytrigno import TrignoEMG
+
 
 class RLSMapping(pipeline.Block):
     """Linear mapping of EMG amplitude to position updated by RLS.
@@ -61,7 +63,8 @@ class RLSMapping(pipeline.Block):
 
 
 class FFT(pipeline.Block):
-    """Performs Numpy's Fast Fourier Transform on the windowed signal and returns the positive frequencies and associated rectified powers.
+    """Performs Numpy's Fast Fourier Transform on the windowed signal and
+    returns the positive frequencies and associated rectified powers.
     ----------
     Returns: tuple, where k is number of input signals, n is number of fft pts:
         (freq, shape (n/2,), powers, shape (n/2,k))
@@ -91,10 +94,12 @@ class plotFFT(Task):
         # yikes... evenly space along the horizontal
         self.cursorx = [(i+1.)*2/(config['numbands'] + 1.) -
                         1. for i in np.arange(config['numbands'])]
-        self.active_targets = np.unpackbits(np.arange(np.power(2, config['numbands']), dtype=np.uint8)[
-                                            :, None], axis=1)[:, -config['numbands']:]+.25  # returns array of all possible combinations
+        # returns array of all possible combinations
+        self.active_targets = np.unpackbits(np.arange(
+            np.power(2, config['numbands']), dtype=np.uint8)[:, None],
+            axis=1)[:, -config['numbands']:]/2+.25
 
-        for training in [True, True, True, False]:
+        for training in [True]*10:
             block = design.add_block()
             for active in self.active_targets:
                 block.add_trial(attrs={
@@ -155,13 +160,12 @@ class plotFFT(Task):
         (self.freq, self.powers), self.integratedEMG = self.pipeline.process(data)
         for i in np.arange(config['numbands']):
             self.plots[i].setData(self.freq, self.powers[:, i])
-            self.cursors[i].y = self.integratedEMG[i]/20
+            self.cursors[i].y = self.integratedEMG[i]/10
 
         target_pos = np.array(self.trial.attrs['active_targets']).flatten()
         if self.trial.attrs['training'] and 'RLSMapping' in self.pipeline.named_blocks:
             self.pipeline.named_blocks['RLSMapping'].update(target_pos)
-        for i, cursor in enumerate(self.cursors):
-            if cursor.collides_with(self.targets[i]):
+        if all(cursor.collides_with(self.targets[i]) for i, cursor in enumerate(self.cursors)):
                 self.finish_trial()
 
         self.timer.increment()
@@ -187,7 +191,8 @@ class plotFFT(Task):
             super().key_press(key)
 
 
-dev = NoiseGenerator(rate=2000, num_channels=1, read_size=200)
+# dev = NoiseGenerator(rate=2000, num_channels=1, read_size=200)
+dev = TrignoEMG(channel_range=(0, 0), samples_per_read=200, units='mV')
 
 exp = Experiment(daq=dev, subject='test')
 config = exp.configure(numbands=int)
@@ -211,6 +216,6 @@ main_pipeline = pipeline.Pipeline([
 ])
 
 exp.run(
-    # Oscilloscope(dev),
+    Oscilloscope(pipeline.Windower(2000)),
     plotFFT(main_pipeline)
 )
