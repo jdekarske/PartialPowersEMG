@@ -15,6 +15,8 @@ import pyqtgraph as pg
 
 from pytrigno.pytrigno import TrignoEMG
 
+import time
+
 
 class RLSMapping(pipeline.Block):
     """Linear mapping of EMG amplitude to position updated by RLS.
@@ -108,6 +110,9 @@ class plotFFT(Task):
                 })
             block.shuffle()
 
+    def prepare_storage(self, storage):
+        self.writer = storage.create_task('training task_' + time.strftime("%Y%m%d-%H%M%S"))
+
     def prepare_graphics(self, container):
         self.plt = pg.PlotWidget()
         self.plots = []
@@ -142,14 +147,16 @@ class plotFFT(Task):
         self.daqstream = daqstream
         self.daqstream.start()
 
-        self.timer = Counter(50)
+        self.timer = Counter(100)
         self.timer.timeout.connect(self.finish_trial)
 
     def run_trial(self, trial):
+        # change the color of the target cursor depending if training
         if not trial.attrs['training']:
             for i in np.arange(config['numbands']):
                 self.targets[i].color = '#3224b1'
         self._reset()
+        # set the target positions
         for i in np.arange(config['numbands']):
             self.targets[i].pos = self.cursorx[i], trial.attrs['active_targets'][i]
             self.targets[i].show()
@@ -157,10 +164,11 @@ class plotFFT(Task):
         self.connect(self.daqstream.updated, self.update)
 
     def update(self, data):
+        self.weights = [.7, 1.4]
         (self.freq, self.powers), self.integratedEMG = self.pipeline.process(data)
         for i in np.arange(config['numbands']):
             self.plots[i].setData(self.freq, self.powers[:, i])
-            self.cursors[i].y = self.integratedEMG[i]/10
+            self.cursors[i].y = (self.integratedEMG[i]*1.5-0.75*np.sum(np.delete(self.integratedEMG, i)))*self.weights[i]/20
 
         target_pos = np.array(self.trial.attrs['active_targets']).flatten()
         if self.trial.attrs['training'] and 'RLSMapping' in self.pipeline.named_blocks:
@@ -171,6 +179,11 @@ class plotFFT(Task):
         self.timer.increment()
 
     def finish_trial(self):
+        self.trial.attrs['final_cursor_pos'] = [self.cursors[i].pos[1] for i in np.arange(config['numbands'])]
+        self.trial.attrs['time'] = self.timer.count
+        self.trial.attrs['timeout'] = self.trial.attrs['time'] < 1
+        self.trial.attrs['difficult'] = (not self.trial.attrs['timeout']) and (np.size(np.unique(self.trial.attrs['active_targets'])) > 1)
+        self.writer.write(self.trial)
         self.disconnect(self.daqstream.updated, self.update)
         self._reset()
         self.next_trial()
@@ -197,18 +210,18 @@ dev = TrignoEMG(channel_range=(0, 0), samples_per_read=200, units='mV')
 exp = Experiment(daq=dev, subject='test')
 config = exp.configure(numbands=int)
 
-b, a = butter(4, (80, 100), fs=2000, btype='bandpass')
+b, a = butter(4, (40, 60), fs=2000, btype='bandpass')
 lowfilter = pipeline.Pipeline([
     pipeline.Filter(b, a=a, overlap=200)
 ])
 
-b, a = butter(4, (130, 160), fs=2000, btype='bandpass')
+b, a = butter(4, (80, 100), fs=2000, btype='bandpass')
 highfilter = pipeline.Pipeline([
     pipeline.Filter(b, a=a, overlap=200)
 ])
 
 main_pipeline = pipeline.Pipeline([
-    pipeline.Windower(400),
+    pipeline.Windower(1000),
     (lowfilter, highfilter),
     # , RLSMapping(config['numbands'], config['numbands'], 0.98)])
     (FFT(), [pipeline.Callable(integrated_emg)])
@@ -216,6 +229,7 @@ main_pipeline = pipeline.Pipeline([
 ])
 
 exp.run(
-    Oscilloscope(pipeline.Windower(2000)),
+
+#    Oscilloscope(pipeline.Windower(2000)),
     plotFFT(main_pipeline)
 )
