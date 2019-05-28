@@ -165,7 +165,7 @@ class plotFFT(Task):
 
     def update(self, data):
         self.weights = [.7, 1.4]
-        (self.freq, self.powers), self.integratedEMG = self.pipeline.process(data)
+        self.windoweddata, ((self.freq, self.powers), self.integratedEMG) = self.pipeline.process(data)
         for i in np.arange(config['numbands']):
             self.plots[i].setData(self.freq, self.powers[:, i])
             self.cursors[i].y = (self.integratedEMG[i]*1.5-0.75*np.sum(np.delete(self.integratedEMG, i)))*self.weights[i]/20
@@ -183,6 +183,7 @@ class plotFFT(Task):
         self.trial.attrs['time'] = self.timer.count
         self.trial.attrs['timeout'] = self.trial.attrs['time'] < 1
         self.trial.attrs['difficult'] = (not self.trial.attrs['timeout']) and (np.size(np.unique(self.trial.attrs['active_targets'])) > 1)
+        self.trial.add_array('windowedEMG', data=self.windoweddata) # TODO: complain to kenny about this
         self.writer.write(self.trial)
         self.disconnect(self.daqstream.updated, self.update)
         self._reset()
@@ -222,9 +223,10 @@ highfilter = pipeline.Pipeline([
 
 main_pipeline = pipeline.Pipeline([
     pipeline.Windower(1000),
-    (lowfilter, highfilter),
+    pipeline.Passthrough(
+    [(lowfilter, highfilter),
     # , RLSMapping(config['numbands'], config['numbands'], 0.98)])
-    (FFT(), [pipeline.Callable(integrated_emg)])
+    (FFT(), pipeline.Callable(integrated_emg))], expand_output=False)
 
 ])
 
