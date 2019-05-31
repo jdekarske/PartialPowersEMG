@@ -85,6 +85,23 @@ class FFT(pipeline.Block):
         return pospower  # add frequencies to match power shape
 
 
+class exponentialsmoothing(pipeline.Block):
+    """applies a low pass smoothing filter https://en.wikipedia.org/wiki/Exponential_smoothing
+    Parameters
+    ----------
+    alpha : float
+        smoothing factor, default - .98
+    """
+    def __init__(self, alpha=.06):
+        super().__init__()
+        self.xt = 0
+        self.alpha = alpha
+
+    def process(self, data):
+        self.xt = np.add(np.multiply(data, self.alpha), np.multiply(self.xt, (1 - self.alpha)))
+        return self.xt
+
+
 class plotFFT(Task):
 
     def __init__(self, pipeline):
@@ -98,7 +115,7 @@ class plotFFT(Task):
         # returns array of all possible combinations
         self.active_targets = np.unpackbits(np.arange(
             np.power(2, config['numbands']), dtype=np.uint8)[:, None],
-            axis=1)[:, -config['numbands']:] / 2+.25
+            axis=1)[:, -config['numbands']:] / 2 + .25
 
         for training in [True] * 10:
             block = design.add_block()
@@ -159,16 +176,16 @@ class plotFFT(Task):
         for i in np.arange(config['numbands']):
             self.targets[i].pos = self.cursorx[i], trial.attrs['active_targets'][i]
             self.targets[i].show()
-        #self.pipeline.clear()
+        # self.pipeline.clear()
         self.connect(self.daqstream.updated, self.update)
 
     def update(self, data):
-        self.weights = [1, 1]
+        self.weights = [1.2, .5]
         self.integratedEMG = self.pipeline.process(data)
         self.windoweddata = self.integratedEMG.pop(0)
         for i in np.arange(config['numbands']):
             # self.plots[i].setData(self.freq, self.powers[:, i])
-            self.cursors[i].y = (self.integratedEMG[i] * 1.5 - 0.75 * np.sum(np.delete(self.integratedEMG, i))) * self.weights[i] * 2
+            self.cursors[i].y = (self.integratedEMG[i] * .75 - .25 * np.sum(np.delete(self.integratedEMG, i))) * self.weights[i] * 30
 
         target_pos = np.array(self.trial.attrs['active_targets']).flatten()
         if self.trial.attrs['training'] and 'RLSMapping' in self.pipeline.named_blocks:
@@ -183,7 +200,7 @@ class plotFFT(Task):
         self.trial.attrs['time'] = self.timer.count
         self.trial.attrs['timeout'] = self.trial.attrs['time'] < 1
         self.trial.attrs['difficult'] = (not self.trial.attrs['timeout']) and (np.size(np.unique(self.trial.attrs['active_targets'])) > 1)
-        self.trial.add_array('windowedEMG', data=self.windoweddata) # TODO: complain to kenny about this
+        self.trial.add_array('windowedEMG', data=self.windoweddata)  # TODO: complain to kenny about this
         self.writer.write(self.trial)
         self.disconnect(self.daqstream.updated, self.update)
         self._reset()
@@ -230,7 +247,7 @@ highfilter = pipeline.Pipeline([
 main_pipeline = pipeline.Pipeline([
     pipeline.Windower(1000),
     pipeline.Passthrough(
-    [(lowfilter, highfilter), FFT(), pipeline.Callable(integrated_emg), lowpassfilter])])
+    [(lowfilter, highfilter), FFT(), pipeline.Callable(integrated_emg), exponentialsmoothing()])])
 
 exp.run(
 
