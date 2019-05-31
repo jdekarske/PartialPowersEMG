@@ -76,17 +76,16 @@ class FFT(pipeline.Block):
     def process(self, data):
         n = 1000  # number of fft pts
         chan = np.shape(data)[0]
-        F = np.fft.fft(data, n=n).T
-        F = F.reshape((n, chan))
-        freq = np.fft.fftfreq(n, d=1/2000)
-        power = np.square(F.real)/n
-        posfreq = freq[:int(n/2)]
-        pospower = power[:int(n/2), :]
-        return (posfreq, pospower)  # add frequencies to match power shape
+        F = np.fft.fft(data, n=n)
+        F = F.reshape((chan, n))
+        freq = np.fft.fftfreq(n, d=1 / 2000)
+        power = np.square(F.real) / n
+        posfreq = freq[:int(n / 2)]
+        pospower = power[:, :int(n / 2)]
+        return pospower  # add frequencies to match power shape
 
 
 class plotFFT(Task):
-    '''This will train the vertical mappings for the signals simultaneously'''
 
     def __init__(self, pipeline):
         super().__init__()
@@ -94,14 +93,14 @@ class plotFFT(Task):
 
     def prepare_design(self, design):
         # yikes... evenly space along the horizontal
-        self.cursorx = [(i+1.)*2/(config['numbands'] + 1.) -
+        self.cursorx = [(i + 1.) * 2 / (config['numbands'] + 1.) -
                         1. for i in np.arange(config['numbands'])]
         # returns array of all possible combinations
         self.active_targets = np.unpackbits(np.arange(
             np.power(2, config['numbands']), dtype=np.uint8)[:, None],
-            axis=1)[:, -config['numbands']:]/2+.25
+            axis=1)[:, -config['numbands']:] / 2+.25
 
-        for training in [True]*10:
+        for training in [True] * 10:
             block = design.add_block()
             for active in self.active_targets:
                 block.add_trial(attrs={
@@ -160,15 +159,16 @@ class plotFFT(Task):
         for i in np.arange(config['numbands']):
             self.targets[i].pos = self.cursorx[i], trial.attrs['active_targets'][i]
             self.targets[i].show()
-        # self.pipeline.clear()
+        #self.pipeline.clear()
         self.connect(self.daqstream.updated, self.update)
 
     def update(self, data):
-        self.weights = [.7, 1.4]
-        self.windoweddata, ((self.freq, self.powers), self.integratedEMG) = self.pipeline.process(data)
+        self.weights = [1, 1]
+        self.integratedEMG = self.pipeline.process(data)
+        self.windoweddata = self.integratedEMG.pop(0)
         for i in np.arange(config['numbands']):
-            self.plots[i].setData(self.freq, self.powers[:, i])
-            self.cursors[i].y = (self.integratedEMG[i]*1.5-0.75*np.sum(np.delete(self.integratedEMG, i)))*self.weights[i]/20
+            # self.plots[i].setData(self.freq, self.powers[:, i])
+            self.cursors[i].y = (self.integratedEMG[i] * 1.5 - 0.75 * np.sum(np.delete(self.integratedEMG, i))) * self.weights[i] * 2
 
         target_pos = np.array(self.trial.attrs['active_targets']).flatten()
         if self.trial.attrs['training'] and 'RLSMapping' in self.pipeline.named_blocks:
@@ -211,6 +211,12 @@ dev = TrignoEMG(channel_range=(0, 0), samples_per_read=200, units='mV')
 exp = Experiment(daq=dev, subject='test')
 config = exp.configure(numbands=int)
 
+b, a = butter(1, .1, fs=2000, btype='lowpass')
+
+lowpassfilter = pipeline.Pipeline([
+    pipeline.Filter(b, a=a, overlap=200)
+])
+
 b, a = butter(4, (40, 60), fs=2000, btype='bandpass')
 lowfilter = pipeline.Pipeline([
     pipeline.Filter(b, a=a, overlap=200)
@@ -224,11 +230,7 @@ highfilter = pipeline.Pipeline([
 main_pipeline = pipeline.Pipeline([
     pipeline.Windower(1000),
     pipeline.Passthrough(
-    [(lowfilter, highfilter),
-    # , RLSMapping(config['numbands'], config['numbands'], 0.98)])
-    (FFT(), pipeline.Callable(integrated_emg))], expand_output=False)
-
-])
+    [(lowfilter, highfilter), FFT(), pipeline.Callable(integrated_emg), lowpassfilter])])
 
 exp.run(
 
