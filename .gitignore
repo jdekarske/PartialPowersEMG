@@ -1,8 +1,8 @@
 # Custom
 *.csv
 *.odt
-projectenv/
-.venv-dev
+.venv*/
+.vscode/
 data/
 
 # Byte-compiled / optimized / DLL files
