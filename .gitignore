@@ -2,8 +2,7 @@
 *.csv
 *.odt
 projectenv/
-pytrigno/
-.vscode/
+.venv-dev
 data/
 
 # Byte-compiled / optimized / DLL files

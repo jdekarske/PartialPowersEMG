@@ -1,0 +1,6 @@
+[submodule "axopy"]
+	path = axopy
+	url = https://github.com/jdekarske/axopy
+[submodule "pytrigno"]
+	path = pytrigno
+	url = https://github.com/jdekarske/pytrigno.git
