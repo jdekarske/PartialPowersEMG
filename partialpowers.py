@@ -97,6 +97,9 @@ class exponentialsmoothing(pipeline.Block):
         self.xt = 0
         self.alpha = alpha
 
+    def clear(self):
+        self.xt = 0
+
     def process(self, data):
         self.xt = np.add(np.multiply(data, self.alpha), np.multiply(self.xt, (1 - self.alpha)))
         return self.xt
@@ -176,7 +179,7 @@ class plotFFT(Task):
         for i in np.arange(config['numbands']):
             self.targets[i].pos = self.cursorx[i], trial.attrs['active_targets'][i]
             self.targets[i].show()
-        # self.pipeline.clear()
+        self.pipeline.clear()
         self.connect(self.daqstream.updated, self.update)
 
     def update(self, data):
@@ -214,6 +217,7 @@ class plotFFT(Task):
 
     def finish(self):
         self.daqstream.stop()
+        self.finished.emit()
 
     def key_press(self, key):
         if key == util.key_escape:
