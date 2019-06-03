@@ -22,7 +22,7 @@ def FFT(signal, n=1000):
 
 
 def corrplot(ax, correlation, key):
-    cax = ax.matshow(correlation, interpolation='gaussian', cmap='coolwarm', extent=[posfreq[0], posfreq[-1], posfreq[-1], posfreq[0]])
+    cax = ax.matshow(correlation, cmap='coolwarm', extent=[posfreq[0], posfreq[-1], posfreq[-1], posfreq[0]]) # interpolation='gaussian'
     ax.set_title(key)
     freq1 = [40, 60]
     freq2 = [80, 100]
@@ -37,7 +37,7 @@ def corrplot(ax, correlation, key):
     return cax
 
 alltrials = {}
-directory = os.path.abspath('data/2')
+directory = os.path.abspath('data/jason')
 for subdir, _, files in os.walk(directory):
     # check if empty
     if not files:
@@ -96,5 +96,10 @@ fig, axs = plt.subplots(2, 2, constrained_layout=True)
 for i, (key, trial) in enumerate(alltrials.items()):
     correlation = np.corrcoef(trial)
     cax = corrplot(axs.flatten()[i], correlation, key)
-fig.colorbar(cax)
+    cax.set_clim(-1, 1)
+
+fig.subplots_adjust(right=0.8)
+cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+fig.colorbar(cax, cax=cbar_ax)
+
 plt.show()
