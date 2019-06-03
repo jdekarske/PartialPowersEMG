@@ -253,6 +253,7 @@ main_pipeline = pipeline.Pipeline([
     pipeline.Passthrough(
     [(lowfilter, highfilter), FFT(), pipeline.Callable(integrated_emg), exponentialsmoothing()])])
 
+exp.screen.showFullScreen()
 exp.run(
 
 #    Oscilloscope(pipeline.Windower(2000)),
