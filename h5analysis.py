@@ -22,7 +22,7 @@ def FFT(signal, n=1000):
 
 
 def corrplot(ax, correlation, key):
-    cax = ax.matshow(correlation, cmap='coolwarm', extent=[posfreq[0], posfreq[-1], posfreq[-1], posfreq[0]]) # interpolation='gaussian'
+    cax = ax.matshow(correlation, cmap='coolwarm', extent=[posfreq[0], posfreq[-1], posfreq[-1], posfreq[0]])  # interpolation='gaussian'
     ax.set_title(key)
     freq1 = [40, 60]
     freq2 = [80, 100]
