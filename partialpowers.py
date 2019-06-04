@@ -15,53 +15,8 @@ import pyqtgraph as pg
 
 from pytrigno.pytrigno import TrignoEMG
 
+import sys
 import time
-
-
-class RLSMapping(pipeline.Block):
-    """Linear mapping of EMG amplitude to position updated by RLS.
-    Parameters
-    ----------
-    m : int
-        Number of vectors in the mapping.
-    k : int
-        Dimensionality of the mapping vectors.
-    lam : float
-        Forgetting factor.
-    """
-
-    def __init__(self, m, k, lam, delta=0.001):
-        super(RLSMapping, self).__init__()
-        self.m = m
-        self.k = k
-        self.lam = lam
-        self.delta = delta
-        self._init()
-
-    @classmethod
-    def from_weights(cls, weights):
-        """Construct an RLSMapping static weights."""
-        obj = cls(1, 1, 1)
-        obj.weights = weights
-        return obj
-
-    def _init(self):
-        self.w = np.zeros((self.k, self.m))
-        self.P = np.eye(self.m) / self.delta
-
-    def process(self, data):
-        """Just applies the current weights to the input."""
-        self.y = data[:, None]  # didn't work with 2d shape
-        self.xhat = self.y.dot(self.w.T)
-        return self.xhat
-
-    def update(self, x):
-        """Update the weights with the teaching signal."""
-        z = self.P.dot(self.y.T)
-        g = z / (self.lam + self.y.dot(z))
-        e = x - self.xhat
-        self.w = self.w + np.outer(e, g)
-        self.P = (self.P - np.outer(g, z)) / self.lam
 
 
 class FFT(pipeline.Block):
@@ -183,7 +138,7 @@ class plotFFT(Task):
         self.connect(self.daqstream.updated, self.update)
 
     def update(self, data):
-        self.weights = [1.2, .5]
+        self.weights = [1, .7]
         self.integratedEMG = self.pipeline.process(data)
         self.windoweddata = self.integratedEMG.pop(0)
         for i in np.arange(config['numbands']):
@@ -222,6 +177,8 @@ class plotFFT(Task):
     def key_press(self, key):
         if key == util.key_escape:
             self.finish()
+        if key == util.key_q:
+            sys.exit()
         else:
             super().key_press(key)
 
@@ -248,14 +205,19 @@ highfilter = pipeline.Pipeline([
     pipeline.Filter(b, a=a, overlap=200)
 ])
 
+b, a = butter(4, (120, 140), fs=2000, btype='bandpass')
+midfilter = pipeline.Pipeline([
+    pipeline.Filter(b, a=a, overlap=200)
+])
+
 main_pipeline = pipeline.Pipeline([
     pipeline.Windower(1000),
     pipeline.Passthrough(
-    [(lowfilter, highfilter), FFT(), pipeline.Callable(integrated_emg), exponentialsmoothing()])])
+    [(lowfilter, highfilter, midfilter), FFT(), pipeline.Callable(integrated_emg), exponentialsmoothing()])])
 
 exp.screen.showFullScreen()
-exp.run(
-
-#    Oscilloscope(pipeline.Windower(2000)),
-    plotFFT(main_pipeline)
-)
+while True:
+    exp.run(
+    #    Oscilloscope(pipeline.Windower(2000)),
+        plotFFT(main_pipeline)
+    )
