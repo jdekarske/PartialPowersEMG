@@ -60,7 +60,7 @@ class exponentialsmoothing(pipeline.Block):
         return self.xt
 
 
-class plotFFT(Task):
+class PartialPowers(Task):
 
     def __init__(self, pipeline):
         super().__init__()
@@ -183,6 +183,8 @@ class plotFFT(Task):
             super().key_press(key)
 
 
+
+
 # dev = NoiseGenerator(rate=2000, num_channels=1, read_size=200)
 dev = TrignoEMG(channel_range=(0, 0), samples_per_read=200, units='mV')
 
@@ -219,5 +221,7 @@ exp.screen.showFullScreen()
 while True:
     exp.run(
     #    Oscilloscope(pipeline.Windower(2000)),
-        plotFFT(main_pipeline)
+        Exertion(main_pipeline)
+        PartialPowers(main_pipeline)
     )
+    break
