@@ -138,16 +138,15 @@ class PartialPowers(Task):
         self.connect(self.daqstream.updated, self.update)
 
     def update(self, data):
-        self.weights = [1, 1, 1]
+        self.weights = [1, 1, 1] * 30
+        self.differencefactor = 0.2
         self.integratedEMG = self.pipeline.process(data)
         self.windoweddata = self.integratedEMG.pop(0)
         for i in np.arange(config['numbands']):
             # self.plots[i].setData(self.freq, self.powers[:, i])
-            self.cursors[i].y = (self.integratedEMG[i] * .75 - .25 * np.sum(np.delete(self.integratedEMG, i))) * self.weights[i] * 30
+            self.cursors[i].y = (self.integratedEMG[i] - self.differencefactor * np.sum(np.delete(self.integratedEMG, i))) * self.weights[i]
 
         target_pos = np.array(self.trial.attrs['active_targets']).flatten()
-        if self.trial.attrs['training'] and 'RLSMapping' in self.pipeline.named_blocks:
-            self.pipeline.named_blocks['RLSMapping'].update(target_pos)
         if all(cursor.collides_with(self.targets[i]) for i, cursor in enumerate(self.cursors)):
                 self.finish_trial()
 
@@ -157,7 +156,6 @@ class PartialPowers(Task):
         self.trial.attrs['final_cursor_pos'] = [self.cursors[i].pos[1] for i in np.arange(config['numbands'])]
         self.trial.attrs['time'] = self.timer.count
         self.trial.attrs['timeout'] = self.trial.attrs['time'] < 1
-        self.trial.attrs['difficult'] = (not self.trial.attrs['timeout']) and (np.size(np.unique(self.trial.attrs['active_targets'])) > 1)
         self.trial.add_array('windowedEMG', data=self.windoweddata)  # TODO: complain to kenny about this
         self.writer.write(self.trial)
         self.disconnect(self.daqstream.updated, self.update)
@@ -181,8 +179,6 @@ class PartialPowers(Task):
             sys.exit()
         else:
             super().key_press(key)
-
-
 
 
 # dev = NoiseGenerator(rate=2000, num_channels=1, read_size=200)
