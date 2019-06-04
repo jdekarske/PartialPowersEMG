@@ -138,7 +138,7 @@ class plotFFT(Task):
         self.connect(self.daqstream.updated, self.update)
 
     def update(self, data):
-        self.weights = [1, .7]
+        self.weights = [1, 1, 1]
         self.integratedEMG = self.pipeline.process(data)
         self.windoweddata = self.integratedEMG.pop(0)
         for i in np.arange(config['numbands']):
