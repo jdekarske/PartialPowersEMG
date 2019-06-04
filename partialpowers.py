@@ -3,9 +3,9 @@ from axopy.daq import NoiseGenerator
 from axopy.task import Task, Oscilloscope
 from axopy import pipeline
 from axopy.experiment import Experiment
-from axopy.gui.canvas import Canvas, Circle
+from axopy.gui.canvas import Canvas, Circle, Text
 from axopy.features.time import integrated_emg
-from axopy.timing import Counter
+from axopy.timing import Timer, Counter
 
 import numpy as np
 from scipy.signal import butter
@@ -58,6 +58,61 @@ class exponentialsmoothing(pipeline.Block):
     def process(self, data):
         self.xt = np.add(np.multiply(data, self.alpha), np.multiply(self.xt, (1 - self.alpha)))
         return self.xt
+
+
+class Exertion(Task):
+
+    def __init__(self, pipeline):
+        super().__init__()
+        self.pipeline = pipeline
+
+    def prepare_design(self, design):
+        block = design.add_block()
+        for trial in [True] * 2:
+            block.add_trial()
+
+    def prepare_storage(self, storage):
+        self.writer = storage.create_task('Exertiontask_' + time.strftime("%Y%m%d-%H%M%S"))
+
+    def prepare_graphics(self, container):
+        self.countdown = Canvas()
+        self.countdowntext = Text("Flex!")
+        self.countdown.add_item(self.countdowntext)
+        container.set_widget(self.countdown)
+
+    def prepare_daq(self, daqstream):
+        self.daqstream = daqstream
+        self.daqstream.start()
+
+        self.timer = Counter(10)
+        self.timer.timeout.connect(self.finish_trial)
+
+    def run_trial(self, trial):
+        self.timer.reset()
+        self.pipeline.clear()
+        self.connect(self.daqstream.updated, self.update)
+
+    def update(self, data):
+        self.integratedEMG = self.pipeline.process(data)[1:]
+        self.timer.increment()
+
+    def finish_trial(self):
+        self.trial.attrs['Exertion'] = self.integratedEMG
+        self.writer.write(self.trial)
+        self.disconnect(self.daqstream.updated, self.update)
+        self.next_trial()
+
+    def finish(self):
+        self.daqstream.stop()
+        self.finished.emit()
+
+    def key_press(self, key):
+        if key == util.key_escape:
+            self.finish()
+        if key == util.key_q:
+            sys.exit()
+        else:
+            super().key_press(key)
 
 
 class PartialPowers(Task):
@@ -187,8 +242,9 @@ dev = TrignoEMG(channel_range=(0, 0), samples_per_read=200, units='mV')
 exp = Experiment(daq=dev, subject='test')
 config = exp.configure(numbands=int)
 
-b, a = butter(1, .1, fs=2000, btype='lowpass')
 
+# TODO: figure out how to do this recursively
+b, a = butter(1, .1, fs=2000, btype='lowpass')
 lowpassfilter = pipeline.Pipeline([
     pipeline.Filter(b, a=a, overlap=200)
 ])
@@ -218,6 +274,6 @@ while True:
     exp.run(
     #    Oscilloscope(pipeline.Windower(2000)),
         Exertion(main_pipeline)
-        PartialPowers(main_pipeline)
+        #PartialPowers(main_pipeline)
     )
     break
