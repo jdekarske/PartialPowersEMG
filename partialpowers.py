@@ -193,13 +193,13 @@ class PartialPowers(Task):
         self.connect(self.daqstream.updated, self.update)
 
     def update(self, data):
-        self.weights = [1, 1, 1] * 30
-        self.differencefactor = 0.2
+        self.weights = np.multiply([0.33271298928451853, 0.62291817090414547], .2)
+        self.differencefactor = 0.1
         self.integratedEMG = self.pipeline.process(data)
         self.windoweddata = self.integratedEMG.pop(0)
         for i in np.arange(config['numbands']):
             # self.plots[i].setData(self.freq, self.powers[:, i])
-            self.cursors[i].y = (self.integratedEMG[i] - self.differencefactor * np.sum(np.delete(self.integratedEMG, i))) * self.weights[i]
+            self.cursors[i].y = self.integratedEMG[i] / self.weights[i] - self.differencefactor * np.sum(np.delete(self.integratedEMG, i) / np.delete(self.weights, i))
 
         target_pos = np.array(self.trial.attrs['active_targets']).flatten()
         if all(cursor.collides_with(self.targets[i]) for i, cursor in enumerate(self.cursors)):
@@ -270,10 +270,10 @@ main_pipeline = pipeline.Pipeline([
     [(lowfilter, highfilter, midfilter), FFT(), pipeline.Callable(integrated_emg), exponentialsmoothing()])])
 
 exp.screen.showFullScreen()
-while True:
+while True:  
     exp.run(
-    #    Oscilloscope(pipeline.Windower(2000)),
-        Exertion(main_pipeline)
-        #PartialPowers(main_pipeline)
+        # Oscilloscope(pipeline.Windower(2000)),
+        # Exertion(main_pipeline)
+        PartialPowers(main_pipeline)
     )
     break
