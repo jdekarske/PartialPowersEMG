@@ -23,7 +23,7 @@ def FFT(signal, n=1000):
 
 
 def corrplot(ax, correlation, key):
-    cax = ax.matshow(correlation, cmap='coolwarm', extent=[posfreq[0], posfreq[-1], posfreq[-1], posfreq[0]]) # interpolation='gaussian',
+    cax = ax.matshow(correlation, cmap='coolwarm', extent=[posfreq[0], posfreq[-1], posfreq[-1], posfreq[0]])  # interpolation='gaussian',
     ax.set_title(key)
     freq1 = [40, 60]
     freq2 = [80, 100]
@@ -72,18 +72,19 @@ for subdir, _, files in os.walk(directory):
     f = h5py.File(h5filename, 'r')
     for i, (key, trial) in enumerate(f.items()):
         emg = np.array(trial)
+        emg = emg - np.mean(emg)
         posfreq, pospower = FFT(emg, n=FFTpts)
 
         # send to the dictionary for this task
         activetarget = ' '.join(csvlist[i]['active_targets'].split("  "))  # there are extra spaces, this is reaalll ugly
-        activetarget = ''.join(activetarget.split(" ", 1))  # there are extra spaces, this is reaalll ugly        
+        activetarget = ''.join(activetarget.split(" ", 1))
         pospower[0, 0] = 0  # theres a spike at zero
         taskdata[activetarget].append(pospower)
 
         # final distance
         finalpos = eval(csvlist[i]['final_cursor_pos'])
         targetpos = eval(",".join(activetarget.split(" ")))
-        distdata[activetarget].append(np.linalg.norm(np.subtract(finalpos,targetpos)))
+        distdata[activetarget].append(np.linalg.norm(np.subtract(finalpos, targetpos)))
 
         if csvlist[i]['timeout'] == 'True':
             countdata[activetarget].append(0)
@@ -93,16 +94,22 @@ for subdir, _, files in os.walk(directory):
             totalcount.append(1)
         if plotflag:
             plt.figure()
+            plt.title(" ".join([activetarget, csvlist[i]['timeout']]))
             plt.subplot(121)
             plt.plot(emg.flatten())
+            plt.xlabel('Sample')
+            plt.ylabel('mV')
             plt.subplot(122)
             plt.plot(posfreq, pospower.flatten())
-            plt.ylim((0, .06))
+            plt.ylabel('Power')
+            plt.xlabel('Frequency (Hz)')
+            plt.ylim((0, .02))
             plt.xlim(right=400)
             xfreqs = [40, 60, 80, 100]
             for xc in xfreqs:
                 plt.axvline(x=xc, color='m')
             plt.show()
+
     # combine chunks in dictionary
     for i, (key, value) in enumerate(taskdata.items()):
         if not value:
@@ -118,7 +125,7 @@ for subdir, _, files in os.walk(directory):
             continue
         alldist[key] = np.hstack((alldist[key], value)) if key in alldist.keys() else value
 
-# calculate the correlation
+# calculate the correlationzz
 # https://docs.scipy.org/doc/numpy/reference/generated/numpy.corrcoef.html normalized covariance matrix (Pearson)
 fig, axs = plt.subplots(2, 2, constrained_layout=True)
 for i, (key, trial) in enumerate(alltrials.items()):
@@ -137,6 +144,8 @@ plt.figure()
 incount = np.cumsum(totalcount)
 cumulativerecord = np.divide(incount, np.arange(1, len(totalcount) + 1))
 plt.plot(cumulativerecord)
+plt.xlabel('Trial')
+plt.ylabel('Correct %')
 
 # separatecounts
 plt.figure()
@@ -145,9 +154,12 @@ for key, data in allcounts.items():
     cumulativetask = np.divide(incount, np.arange(1, len(data) + 1))
     plt.plot(cumulativetask, label=key)
 plt.legend()
+plt.xlabel('Trial')
+plt.ylabel('Correct %')
 
 # finaldistances
 plt.figure()
+plt.title('Final position error')
 for key, data in alldist.items():
     plt.plot(data, label=key)
 plt.legend()
